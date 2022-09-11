@@ -1,0 +1,11 @@
+.dockerignore
+.DS_Store
+/*.md
+Dockerfile
+venv
+example.env
+example.flaskenv
+Dockerfile.dev
+.env
+README.md
+**/*.pyc

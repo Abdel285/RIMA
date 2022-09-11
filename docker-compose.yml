@@ -1,0 +1,82 @@
+version: "3"
+
+volumes:
+  database-data:
+
+services:
+  frontend-web:
+    build: RIMA-Frontend
+    image: ${IMAGE_NAME_PREFIX:-inko/soco-}rima-frontend:${IMAGE_TAG:-latest}
+    environment:
+      - BASE_URL=http://127.0.0.1:8000
+    ports:
+      - 8000:8080
+
+  backend-api:
+    build: RIMA-Backend
+    image: ${IMAGE_NAME_PREFIX:-inko/soco-}rima-backend:${IMAGE_TAG:-latest}
+    command: bin/api
+    restart: always
+    environment:
+      - DJANGO_DEBUG="False"
+      - REDIS_HOST=backend-redis
+      - POSTGRES_HOST=backend-db
+      - TEMP_DIR=/home/app/.tmp
+      - GLOVE_MODEL_URL=http://model-server:8080/datatest_word2vec.txt
+      - GLOVE_MODEL_FILE_PATH=/home/app/.tmp/datatest_word2vec.txt
+    env_file:
+      - configuration.env
+    depends_on:
+      - backend-db
+      - backend-redis
+    ports:
+      - 8000:8080
+
+  backend-worker:
+    build: RIMA-Backend
+    image: ${IMAGE_NAME_PREFIX:-inko/soco-}rima-backend:${IMAGE_TAG:-latest}
+    command: bin/worker
+    restart: always
+    environment:
+      - DJANGO_DEBUG="False"
+      - REDIS_HOST=backend-redis
+      - POSTGRES_HOST=backend-db
+      - TEMP_DIR=/home/app/.tmp
+      - GLOVE_MODEL_URL=http://model-server:8080/datatest_word2vec.txt
+      - GLOVE_MODEL_FILE_PATH=/home/app/.tmp/datatest_word2vec.txt
+    env_file:
+      - configuration.env
+    depends_on:
+      - backend-db
+      - backend-redis
+
+  backend-db:
+    image: postgres
+    restart: on-failure
+    env_file:
+      - configuration.env
+    volumes:
+      - database-data:/var/lib/postgresql/data/
+
+  backend-redis:
+    image: redis
+    restart: on-failure
+
+  model-downloader:
+    build: model/downloader
+    image: ${IMAGE_NAME_PREFIX:-inko/soco-}rima-model-downloader:${IMAGE_TAG:-latest}
+    restart: on-failure
+    environment:
+      - GLOVE_MODEL_FILE_PATH=/home/app/.tmp/datatest_word2vec.txt
+    env_file:
+      - configuration.env
+    volumes:
+      - ./tmp/model:/home/app/.tmp
+
+  model-server:
+    image: nginxinc/nginx-unprivileged:1.19
+    restart: on-failure
+    volumes:
+      - ./tmp/model:/usr/share/nginx/html
+    ports:
+      - 8001:8080
